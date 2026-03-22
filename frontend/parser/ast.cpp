@@ -1,0 +1,454 @@
+#include "ast.h"
+
+#include <sstream>
+#include <utility>
+
+namespace fusionc::frontend::parser
+{
+
+  namespace
+  {
+
+    std::string kindToString(AstNodeKind kind)
+    {
+      switch (kind)
+      {
+      case AstNodeKind::Program:
+        return "Program";
+      case AstNodeKind::Function:
+        return "Function";
+      case AstNodeKind::Block:
+        return "Block";
+      case AstNodeKind::Statement:
+        return "Statement";
+      case AstNodeKind::Declaration:
+        return "Declaration";
+      case AstNodeKind::Assignment:
+        return "Assignment";
+      case AstNodeKind::BinaryExpression:
+        return "BinaryExpression";
+      case AstNodeKind::Literal:
+        return "Literal";
+      case AstNodeKind::Identifier:
+        return "Identifier";
+      case AstNodeKind::Return:
+        return "Return";
+      case AstNodeKind::ExpressionStatement:
+        return "ExpressionStatement";
+      default:
+        return "Unknown";
+      }
+    }
+
+    bool isTypeKeyword(const lexer::Token &token)
+    {
+      if (token.type != lexer::TokenType::Keyword)
+      {
+        return false;
+      }
+
+      return token.lexeme == "int" || token.lexeme == "float" || token.lexeme == "char" || token.lexeme == "void" ||
+             token.lexeme == "let";
+    }
+
+  } // namespace
+
+  Parser::Parser(std::vector<lexer::Token> tokens) : tokens_(std::move(tokens)) {}
+
+  std::unique_ptr<AstNode> Parser::parseProgram()
+  {
+    auto program = std::make_unique<AstNode>();
+    program->kind = AstNodeKind::Program;
+    program->value = "root";
+
+    while (!isAtEnd())
+    {
+      if (check(lexer::TokenType::EndOfFile))
+      {
+        break;
+      }
+
+      auto func = parseFunction();
+      if (func)
+      {
+        program->children.push_back(std::move(func));
+      }
+      else
+      {
+        syncToStatementEnd();
+      }
+    }
+
+    return program;
+  }
+
+  const std::vector<std::string> &Parser::errors() const
+  {
+    return errors_;
+  }
+
+  std::unique_ptr<AstNode> Parser::parseFunction()
+  {
+    if (!check(lexer::TokenType::Keyword))
+    {
+      addError("Expected return type before function name.");
+      return nullptr;
+    }
+
+    const auto returnType = advance();
+    if (!match(lexer::TokenType::Identifier))
+    {
+      addError("Expected function name after return type.");
+      return nullptr;
+    }
+
+    auto func = std::make_unique<AstNode>();
+    func->kind = AstNodeKind::Function;
+    func->value = previous().lexeme + ":" + returnType.lexeme;
+
+    if (!match(lexer::TokenType::Punctuation, "("))
+    {
+      addError("Expected '(' after function name.");
+      return nullptr;
+    }
+    if (!match(lexer::TokenType::Punctuation, ")"))
+    {
+      addError("Expected ')' after parameter list.");
+      return nullptr;
+    }
+
+    if (!match(lexer::TokenType::Punctuation, "{"))
+    {
+      addError("Expected '{' to start function body.");
+      return nullptr;
+    }
+
+    auto body = parseBlock();
+    if (!body)
+    {
+      addError("Invalid function body.");
+      return nullptr;
+    }
+
+    func->children.push_back(std::move(body));
+    return func;
+  }
+
+  std::unique_ptr<AstNode> Parser::parseBlock()
+  {
+    auto block = std::make_unique<AstNode>();
+    block->kind = AstNodeKind::Block;
+    block->value = "block";
+
+    while (!isAtEnd() && !check(lexer::TokenType::Punctuation, "}"))
+    {
+      auto stmt = parseStatement();
+      if (stmt)
+      {
+        block->children.push_back(std::move(stmt));
+      }
+      else
+      {
+        syncToStatementEnd();
+      }
+    }
+
+    if (!match(lexer::TokenType::Punctuation, "}"))
+    {
+      addError("Expected '}' to close block.");
+      return nullptr;
+    }
+
+    return block;
+  }
+
+  std::unique_ptr<AstNode> Parser::parseStatement()
+  {
+    if (match(lexer::TokenType::Punctuation, "{"))
+    {
+      return parseBlock();
+    }
+
+    if (match(lexer::TokenType::Keyword, "return"))
+    {
+      auto retNode = std::make_unique<AstNode>();
+      retNode->kind = AstNodeKind::Return;
+      retNode->value = "return";
+
+      auto expr = parseExpression();
+      if (expr)
+      {
+        retNode->children.push_back(std::move(expr));
+      }
+
+      if (!match(lexer::TokenType::Punctuation, ";"))
+      {
+        addError("Expected ';' after return statement.");
+        return nullptr;
+      }
+      return retNode;
+    }
+
+    auto parsed = parseDeclarationOrAssignment();
+    if (!parsed)
+    {
+      return nullptr;
+    }
+
+    if (!match(lexer::TokenType::Punctuation, ";"))
+    {
+      addError("Expected ';' at end of statement.");
+      return nullptr;
+    }
+
+    auto statement = std::make_unique<AstNode>();
+    statement->kind = AstNodeKind::ExpressionStatement;
+    statement->value = "stmt";
+    statement->children.push_back(std::move(parsed));
+    return statement;
+  }
+
+  std::unique_ptr<AstNode> Parser::parseDeclarationOrAssignment()
+  {
+    if (isTypeKeyword(peek()))
+    {
+      const auto &typeToken = advance();
+      if (!match(lexer::TokenType::Identifier))
+      {
+        addError("Expected identifier after type keyword '" + typeToken.lexeme + "'.");
+        return nullptr;
+      }
+
+      auto node = std::make_unique<AstNode>();
+      node->kind = AstNodeKind::Declaration;
+      node->value = typeToken.lexeme;
+
+      auto identifier = std::make_unique<AstNode>();
+      identifier->kind = AstNodeKind::Identifier;
+      identifier->value = previous().lexeme;
+      node->children.push_back(std::move(identifier));
+
+      if (match(lexer::TokenType::Operator, "="))
+      {
+        auto expr = parseExpression();
+        if (!expr)
+        {
+          addError("Expected expression in declaration initializer.");
+          return nullptr;
+        }
+        node->children.push_back(std::move(expr));
+      }
+
+      return node;
+    }
+
+    if (check(lexer::TokenType::Identifier) && current_ + 1 < tokens_.size() &&
+        tokens_[current_ + 1].type == lexer::TokenType::Operator && tokens_[current_ + 1].lexeme == "=")
+    {
+      const auto name = advance().lexeme;
+      advance();
+
+      auto expr = parseExpression();
+      if (!expr)
+      {
+        addError("Expected expression on right-hand side of assignment.");
+        return nullptr;
+      }
+
+      auto assign = std::make_unique<AstNode>();
+      assign->kind = AstNodeKind::Assignment;
+      assign->value = "=";
+
+      auto identifier = std::make_unique<AstNode>();
+      identifier->kind = AstNodeKind::Identifier;
+      identifier->value = name;
+      assign->children.push_back(std::move(identifier));
+      assign->children.push_back(std::move(expr));
+      return assign;
+    }
+
+    return parseExpression();
+  }
+
+  std::unique_ptr<AstNode> Parser::parseExpression()
+  {
+    auto left = parseTerm();
+    if (!left)
+    {
+      return nullptr;
+    }
+
+    while (match(lexer::TokenType::Operator, "+") || match(lexer::TokenType::Operator, "-"))
+    {
+      const std::string op = previous().lexeme;
+      auto right = parseTerm();
+      if (!right)
+      {
+        addError("Expected expression after operator '" + op + "'.");
+        return nullptr;
+      }
+
+      auto binary = std::make_unique<AstNode>();
+      binary->kind = AstNodeKind::BinaryExpression;
+      binary->value = op;
+      binary->children.push_back(std::move(left));
+      binary->children.push_back(std::move(right));
+      left = std::move(binary);
+    }
+
+    return left;
+  }
+
+  std::unique_ptr<AstNode> Parser::parseTerm()
+  {
+    auto left = parseFactor();
+    if (!left)
+    {
+      return nullptr;
+    }
+
+    while (match(lexer::TokenType::Operator, "*") || match(lexer::TokenType::Operator, "/"))
+    {
+      const std::string op = previous().lexeme;
+      auto right = parseFactor();
+      if (!right)
+      {
+        addError("Expected factor after operator '" + op + "'.");
+        return nullptr;
+      }
+
+      auto binary = std::make_unique<AstNode>();
+      binary->kind = AstNodeKind::BinaryExpression;
+      binary->value = op;
+      binary->children.push_back(std::move(left));
+      binary->children.push_back(std::move(right));
+      left = std::move(binary);
+    }
+
+    return left;
+  }
+
+  std::unique_ptr<AstNode> Parser::parseFactor()
+  {
+    if (match(lexer::TokenType::Number) || match(lexer::TokenType::StringLiteral))
+    {
+      auto literal = std::make_unique<AstNode>();
+      literal->kind = AstNodeKind::Literal;
+      literal->value = previous().lexeme;
+      return literal;
+    }
+
+    if (match(lexer::TokenType::Identifier))
+    {
+      auto identifier = std::make_unique<AstNode>();
+      identifier->kind = AstNodeKind::Identifier;
+      identifier->value = previous().lexeme;
+      return identifier;
+    }
+
+    if (match(lexer::TokenType::Punctuation, "("))
+    {
+      auto expr = parseExpression();
+      if (!match(lexer::TokenType::Punctuation, ")"))
+      {
+        addError("Expected ')' after grouped expression.");
+        return nullptr;
+      }
+      return expr;
+    }
+
+    addError("Unexpected token '" + peek().lexeme + "'.");
+    return nullptr;
+  }
+
+  bool Parser::match(lexer::TokenType type, const std::string &lexeme)
+  {
+    if (!check(type, lexeme))
+    {
+      return false;
+    }
+
+    advance();
+    return true;
+  }
+
+  bool Parser::check(lexer::TokenType type, const std::string &lexeme) const
+  {
+    if (isAtEnd() && type != lexer::TokenType::EndOfFile)
+    {
+      return false;
+    }
+
+    const auto &token = peek();
+    if (token.type != type)
+    {
+      return false;
+    }
+
+    return lexeme.empty() || token.lexeme == lexeme;
+  }
+
+  const lexer::Token &Parser::advance()
+  {
+    if (!isAtEnd())
+    {
+      ++current_;
+    }
+    return previous();
+  }
+
+  const lexer::Token &Parser::peek() const
+  {
+    return tokens_[current_];
+  }
+
+  const lexer::Token &Parser::previous() const
+  {
+    return tokens_[current_ - 1];
+  }
+
+  bool Parser::isAtEnd() const
+  {
+    return current_ >= tokens_.size() || tokens_[current_].type == lexer::TokenType::EndOfFile;
+  }
+
+  void Parser::syncToStatementEnd()
+  {
+    while (!isAtEnd())
+    {
+      if (match(lexer::TokenType::Punctuation, ";"))
+      {
+        return;
+      }
+      if (check(lexer::TokenType::Punctuation, "}"))
+      {
+        return;
+      }
+      advance();
+    }
+  }
+
+  void Parser::addError(const std::string &message)
+  {
+    errors_.push_back(message);
+  }
+
+  std::string astToString(const AstNode &node, int indent)
+  {
+    std::ostringstream out;
+    out << std::string(static_cast<std::size_t>(indent), ' ') << kindToString(node.kind);
+    if (!node.value.empty())
+    {
+      out << "(" << node.value << ")";
+    }
+    out << '\n';
+
+    for (const auto &child : node.children)
+    {
+      out << astToString(*child, indent + 2);
+    }
+
+    return out.str();
+  }
+
+} // namespace fusionc::frontend::parser
