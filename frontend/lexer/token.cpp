@@ -163,12 +163,39 @@ namespace fusionc::frontend::lexer
 
         while (index < source.size() && source[index] != '"')
         {
-          if (source[index] == '\n')
+          char ch = source[index];
+          if (ch == '\n')
           {
             ++line;
             col = 1;
           }
-          lexeme.push_back(source[index]);
+          else if (ch == '\\' && index + 1 < source.size())
+          {
+            // Handle escape sequences
+            ++index;
+            ++col;
+            char next = source[index];
+            switch (next)
+            {
+            case 'n':
+              ch = '\n';
+              break;
+            case 't':
+              ch = '\t';
+              break;
+            case '"':
+              ch = '"';
+              break;
+            case '\\':
+              ch = '\\';
+              break;
+            default:
+              // Unknown escape, keep as-is
+              ch = next;
+              break;
+            }
+          }
+          lexeme.push_back(ch);
           ++index;
           ++col;
         }
