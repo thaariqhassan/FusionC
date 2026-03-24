@@ -39,6 +39,8 @@ namespace fusionc::frontend::parser
         return "WhileStatement";
       case AstNodeKind::Printf:
         return "Printf";
+      case AstNodeKind::Scanf:
+        return "Scanf";
       default:
         return "Unknown";
       }
@@ -200,6 +202,10 @@ namespace fusionc::frontend::parser
     {
     return parsePrintf();
     }
+    if (match(lexer::TokenType::Keyword, "scanf"))
+    {
+    return parseScanf();
+    }
 
     if (match(lexer::TokenType::Keyword, "while"))
     {
@@ -306,9 +312,21 @@ namespace fusionc::frontend::parser
     stringLit->value = previous().lexeme;
     printfNode->children.push_back(std::move(stringLit));
 
+    // Optional additional arguments
+    while (match(lexer::TokenType::Punctuation, ","))
+    {
+      auto expr = parseExpression();
+      if (!expr)
+      {
+        addError("Expected expression in printf arguments.");
+        return nullptr;
+      }
+      printfNode->children.push_back(std::move(expr));
+    }
+
     if (!match(lexer::TokenType::Punctuation, ")"))
     {
-      addError("Expected ')' after printf argument.");
+      addError("Expected ')' after printf arguments.");
       return nullptr;
     }
 
@@ -319,6 +337,61 @@ namespace fusionc::frontend::parser
     }
 
     return printfNode;
+  }
+
+  std::unique_ptr<AstNode> Parser::parseScanf()
+  {
+    auto scanfNode = std::make_unique<AstNode>();
+    scanfNode->kind = AstNodeKind::Scanf;
+    scanfNode->value = "scanf";
+
+    if (!match(lexer::TokenType::Punctuation, "("))
+    {
+      addError("Expected '(' after scanf.");
+      return nullptr;
+    }
+
+    if (!match(lexer::TokenType::StringLiteral))
+    {
+      addError("Expected format string in scanf.");
+      return nullptr;
+    }
+
+    auto formatLit = std::make_unique<AstNode>();
+    formatLit->kind = AstNodeKind::Literal;
+    formatLit->value = previous().lexeme;
+    scanfNode->children.push_back(std::move(formatLit));
+
+    if (!match(lexer::TokenType::Punctuation, ","))
+    {
+      addError("Expected ',' after format string in scanf.");
+      return nullptr;
+    }
+
+    if (!match(lexer::TokenType::Identifier))
+    {
+      addError("Expected identifier in scanf.");
+      return nullptr;
+    }
+
+    auto varNode = std::make_unique<AstNode>();
+    varNode->kind = AstNodeKind::Identifier;
+    varNode->value = previous().lexeme;
+    scanfNode->children.push_back(std::move(varNode));
+
+    if (!match(lexer::TokenType::Punctuation, ")"))
+    {
+      addError("Expected ')' after scanf arguments.");
+      return nullptr;
+    }
+
+    if (!match(lexer::TokenType::Punctuation, ";"))
+    {
+      addError("Expected ';' after scanf statement.");
+      return nullptr;
+    }
+
+    return scanfNode;
   }
 
   std::unique_ptr<AstNode> Parser::parseDeclarationOrAssignment()

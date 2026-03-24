@@ -108,8 +108,25 @@ namespace fusionc::middleend::ir
         {
           if (!stmt.children.empty())
           {
-            std::string msg = stmt.children.front()->value;
-            prog.push_back(Instruction{"print", msg, "", ""});
+            std::string format = stmt.children[0]->value;
+            if (stmt.children.size() == 1)
+            {
+              prog.push_back(Instruction{"print", format, "", ""});
+            }
+            else if (stmt.children.size() == 2)
+            {
+              std::string arg = emitExpr(*stmt.children[1], prog);
+              prog.push_back(Instruction{"print", format, arg, ""});
+            }
+            // For more args, could extend, but for now assume 0 or 1 arg
+          }
+        }
+        else if (stmt.kind == AstNodeKind::Scanf)
+        {
+          if (stmt.children.size() >= 2)
+          {
+            std::string var = stmt.children[1]->value;
+            prog.push_back(Instruction{"scan", var, "", ""});
           }
         }
       }

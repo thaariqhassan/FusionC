@@ -81,6 +81,10 @@ namespace fusionc::backend::codegen
       {
         std::cout << ins.dst << std::endl;
       }
+      else if (ins.op == "scan")
+      {
+        std::cin >> slots[ins.dst];
+      }
       else if (ins.op == "ret")
       {
         result.ok = true;
