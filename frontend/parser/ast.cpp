@@ -37,6 +37,8 @@ namespace fusionc::frontend::parser
         return "ExpressionStatement";
       case AstNodeKind::WhileStatement:
         return "WhileStatement";
+      case AstNodeKind::Printf:
+        return "Printf";
       default:
         return "Unknown";
       }
@@ -186,12 +188,17 @@ namespace fusionc::frontend::parser
 
     return block;
   }
+  
 
   std::unique_ptr<AstNode> Parser::parseStatement()
   {
     if (match(lexer::TokenType::Punctuation, "{"))
     {
       return parseBlock();
+    }
+    if (match(lexer::TokenType::Keyword, "printf"))
+    {
+    return parsePrintf();
     }
 
     if (match(lexer::TokenType::Keyword, "while"))
@@ -274,6 +281,44 @@ namespace fusionc::frontend::parser
     statement->value = "stmt";
     statement->children.push_back(std::move(parsed));
     return statement;
+  }
+
+  std::unique_ptr<AstNode> Parser::parsePrintf()
+  {
+    auto printfNode = std::make_unique<AstNode>();
+    printfNode->kind = AstNodeKind::Printf;
+    printfNode->value = "printf";
+
+    if (!match(lexer::TokenType::Punctuation, "("))
+    {
+      addError("Expected '(' after printf.");
+      return nullptr;
+    }
+
+    if (!match(lexer::TokenType::StringLiteral))
+    {
+      addError("Expected string literal in printf.");
+      return nullptr;
+    }
+
+    auto stringLit = std::make_unique<AstNode>();
+    stringLit->kind = AstNodeKind::Literal;
+    stringLit->value = previous().lexeme;
+    printfNode->children.push_back(std::move(stringLit));
+
+    if (!match(lexer::TokenType::Punctuation, ")"))
+    {
+      addError("Expected ')' after printf argument.");
+      return nullptr;
+    }
+
+    if (!match(lexer::TokenType::Punctuation, ";"))
+    {
+      addError("Expected ';' after printf statement.");
+      return nullptr;
+    }
+
+    return printfNode;
   }
 
   std::unique_ptr<AstNode> Parser::parseDeclarationOrAssignment()

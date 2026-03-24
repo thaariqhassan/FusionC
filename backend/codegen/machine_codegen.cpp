@@ -1,5 +1,6 @@
 #include "machine_codegen.h"
 
+#include <iostream>
 #include <unordered_map>
 #include <stdexcept>
 
@@ -75,6 +76,10 @@ namespace fusionc::backend::codegen
         {
           pc = labels.at(ins.dst) - 1;
         }
+      }
+      else if (ins.op == "print")
+      {
+        std::cout << ins.dst << std::endl;
       }
       else if (ins.op == "ret")
       {

@@ -104,6 +104,14 @@ namespace fusionc::middleend::ir
           prog.push_back(Instruction{"jmp", startLabel, "", ""});
           prog.push_back(Instruction{"label", endLabel, "", ""});
         }
+        else if (stmt.kind == AstNodeKind::Printf)
+        {
+          if (!stmt.children.empty())
+          {
+            std::string msg = stmt.children.front()->value;
+            prog.push_back(Instruction{"print", msg, "", ""});
+          }
+        }
       }
 
       std::string emitExpr(const frontend::parser::AstNode &expr, Program &prog)

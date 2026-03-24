@@ -64,7 +64,7 @@ namespace fusionc::core
       return LanguageProfile{
           LanguageKind::C,
           "C",
-          {"int", "float", "char", "void", "if", "else", "while", "for", "return", "struct", "typedef"}};
+          {"int", "float", "char", "void", "if", "else", "while", "for", "return", "struct", "typedef", "printf"}};
     }
 
     if (kind == LanguageKind::Custom)
