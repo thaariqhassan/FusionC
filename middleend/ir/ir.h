@@ -11,7 +11,7 @@ namespace fusionc::middleend::ir
 
   struct Instruction
   {
-    // op can be: const, copy, add, sub, mul, div, ret
+    // op can be: const, copy, add, sub, mul, div, label, jmp, jz, ret
     std::string op;
     std::string dst;
     std::string arg1;

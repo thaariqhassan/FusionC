@@ -4,6 +4,19 @@
 namespace fusionc::frontend::semantic
 {
 
+  namespace
+  {
+    std::string normalizeType(const std::string &type)
+    {
+      // Treat CustomLang 'let' as int for now
+      if (type == "let")
+      {
+        return "int";
+      }
+      return type;
+    }
+  } // namespace
+
   void SymbolTable::pushScope()
   {
     scopes_.push_back({});
@@ -24,7 +37,7 @@ namespace fusionc::frontend::semantic
     {
       return false;
     }
-    current[name] = type;
+    current[name] = normalizeType(type);
     return true;
   }
 
@@ -76,7 +89,7 @@ namespace fusionc::frontend::semantic
 
     symbols_.pushScope();
     const auto colonPos = fn.value.find(':');
-    currentReturnType_ = colonPos == std::string::npos ? "int" : fn.value.substr(colonPos + 1);
+    currentReturnType_ = colonPos == std::string::npos ? "int" : normalizeType(fn.value.substr(colonPos + 1));
     analyzeBlock(*fn.children.front());
     symbols_.popScope();
   }
@@ -94,6 +107,7 @@ namespace fusionc::frontend::semantic
   void SemanticAnalyzer::analyzeStatement(const parser::AstNode &stmt)
   {
     using parser::AstNodeKind;
+
     if (stmt.kind == AstNodeKind::Return)
     {
       if (stmt.children.empty())
@@ -104,7 +118,8 @@ namespace fusionc::frontend::semantic
         }
         return;
       }
-      const auto type = analyzeExpression(*stmt.children.front());
+
+      const auto type = normalizeType(analyzeExpression(*stmt.children.front()));
       if (!currentReturnType_.empty() && currentReturnType_ != type)
       {
         errors_.push_back("Return type mismatch. Expected '" + currentReturnType_ + "' but got '" + type + "'.");
@@ -125,51 +140,99 @@ namespace fusionc::frontend::semantic
   std::string SemanticAnalyzer::analyzeExpression(const parser::AstNode &expr)
   {
     using parser::AstNodeKind;
+
     switch (expr.kind)
     {
     case AstNodeKind::Declaration:
     {
-      const auto type = expr.value;
+      std::string type = normalizeType(expr.value);
+
       if (expr.children.empty())
       {
         return type;
       }
+
       const auto &idNode = *expr.children.front();
+
       if (!symbols_.declare(idNode.value, type))
       {
         errors_.push_back("Duplicate declaration of '" + idNode.value + "'.");
       }
+
       if (expr.children.size() == 2)
       {
-        analyzeExpression(*expr.children[1]);
+        const auto initType = normalizeType(analyzeExpression(*expr.children[1]));
+        if (!initType.empty() && initType != type)
+        {
+          errors_.push_back("Initializer type mismatch for '" + idNode.value + "'. Expected '" + type + "' but got '" + initType + "'.");
+        }
       }
+
       return type;
     }
+
     case AstNodeKind::Assignment:
     {
+      if (expr.children.size() != 2)
+      {
+        errors_.push_back("Invalid assignment expression.");
+        return "";
+      }
+
       const auto &idNode = *expr.children.front();
+
       if (!symbols_.exists(idNode.value))
       {
         errors_.push_back("Use of undeclared identifier '" + idNode.value + "'.");
+        analyzeExpression(*expr.children[1]);
+        return "";
       }
-      analyzeExpression(*expr.children[1]);
-      return symbols_.typeOf(idNode.value);
+
+      const auto lhsType = normalizeType(symbols_.typeOf(idNode.value));
+      const auto rhsType = normalizeType(analyzeExpression(*expr.children[1]));
+
+      if (!rhsType.empty() && lhsType != rhsType)
+      {
+        errors_.push_back("Assignment type mismatch for '" + idNode.value + "'. Expected '" + lhsType + "' but got '" + rhsType + "'.");
+      }
+
+      return lhsType;
     }
+
     case AstNodeKind::BinaryExpression:
-      analyzeExpression(*expr.children[0]);
-      analyzeExpression(*expr.children[1]);
+    {
+      if (expr.children.size() != 2)
+      {
+        errors_.push_back("Invalid binary expression.");
+        return "";
+      }
+
+      const auto leftType = normalizeType(analyzeExpression(*expr.children[0]));
+      const auto rightType = normalizeType(analyzeExpression(*expr.children[1]));
+
+      if (!leftType.empty() && !rightType.empty() && leftType != rightType)
+      {
+        errors_.push_back("Type mismatch in binary expression. Left is '" + leftType + "', right is '" + rightType + "'.");
+      }
+
       return "int";
+    }
+
     case AstNodeKind::Literal:
       return "int";
+
     case AstNodeKind::Identifier:
       if (!symbols_.exists(expr.value))
       {
         errors_.push_back("Use of undeclared identifier '" + expr.value + "'.");
+        return "";
       }
-      return symbols_.typeOf(expr.value);
+      return normalizeType(symbols_.typeOf(expr.value));
+
     default:
       break;
     }
+
     return "";
   }
 

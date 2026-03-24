@@ -35,6 +35,8 @@ namespace fusionc::frontend::parser
         return "Return";
       case AstNodeKind::ExpressionStatement:
         return "ExpressionStatement";
+      case AstNodeKind::WhileStatement:
+        return "WhileStatement";
       default:
         return "Unknown";
       }
@@ -89,22 +91,45 @@ namespace fusionc::frontend::parser
 
   std::unique_ptr<AstNode> Parser::parseFunction()
   {
-    if (!check(lexer::TokenType::Keyword))
-    {
-      addError("Expected return type before function name.");
-      return nullptr;
-    }
+    std::string returnType;
+    std::string functionName;
 
-    const auto returnType = advance();
-    if (!match(lexer::TokenType::Identifier))
+    // CustomLang style: fn main() { ... }
+    if (match(lexer::TokenType::Keyword, "fn"))
     {
-      addError("Expected function name after return type.");
+      returnType = "int"; // default return type for now
+
+      if (!match(lexer::TokenType::Identifier))
+      {
+        addError("Expected function name after 'fn'.");
+        return nullptr;
+      }
+
+      functionName = previous().lexeme;
+    }
+    // C style: int main() { ... }
+    else if (check(lexer::TokenType::Keyword))
+    {
+      const auto typeToken = advance();
+      returnType = typeToken.lexeme;
+
+      if (!match(lexer::TokenType::Identifier))
+      {
+        addError("Expected function name after return type.");
+        return nullptr;
+      }
+
+      functionName = previous().lexeme;
+    }
+    else
+    {
+      addError("Expected function declaration.");
       return nullptr;
     }
 
     auto func = std::make_unique<AstNode>();
     func->kind = AstNodeKind::Function;
-    func->value = previous().lexeme + ":" + returnType.lexeme;
+    func->value = functionName + ":" + returnType;
 
     if (!match(lexer::TokenType::Punctuation, "("))
     {
@@ -167,6 +192,49 @@ namespace fusionc::frontend::parser
     if (match(lexer::TokenType::Punctuation, "{"))
     {
       return parseBlock();
+    }
+
+    if (match(lexer::TokenType::Keyword, "while"))
+    {
+      auto whileNode = std::make_unique<AstNode>();
+      whileNode->kind = AstNodeKind::WhileStatement;
+      whileNode->value = "while";
+
+      if (!match(lexer::TokenType::Punctuation, "("))
+      {
+        addError("Expected '(' after while.");
+        return nullptr;
+      }
+
+      auto condition = parseExpression();
+      if (!condition)
+      {
+        addError("Expected condition in while statement.");
+        return nullptr;
+      }
+
+      if (!match(lexer::TokenType::Punctuation, ")"))
+      {
+        addError("Expected ')' after while condition.");
+        return nullptr;
+      }
+
+      if (!match(lexer::TokenType::Punctuation, "{"))
+      {
+        addError("Expected '{' to start while body.");
+        return nullptr;
+      }
+
+      auto body = parseBlock();
+      if (!body)
+      {
+        addError("Invalid while body.");
+        return nullptr;
+      }
+
+      whileNode->children.push_back(std::move(condition));
+      whileNode->children.push_back(std::move(body));
+      return whileNode;
     }
 
     if (match(lexer::TokenType::Keyword, "return"))
