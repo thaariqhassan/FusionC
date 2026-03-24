@@ -79,7 +79,32 @@ namespace fusionc::backend::codegen
       }
       else if (ins.op == "print")
       {
-        std::cout << ins.dst << std::endl;
+        if (ins.arg1.empty())
+        {
+          std::cout << ins.dst;
+          if (!ins.dst.empty() && ins.dst.back() != '\n')
+          {
+            std::cout << std::endl;
+          }
+        }
+        else
+        {
+          // Simple %d replacement
+          std::string format = ins.dst;
+          size_t pos = format.find("%d");
+          if (pos != std::string::npos)
+          {
+            std::cout << format.substr(0, pos) << read(ins.arg1) << format.substr(pos + 2);
+          }
+          else
+          {
+            std::cout << format << read(ins.arg1);
+          }
+          if (format.find('\n') == std::string::npos)
+          {
+            std::cout << std::endl;
+          }
+        }
       }
       else if (ins.op == "scan")
       {

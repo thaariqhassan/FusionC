@@ -109,6 +109,11 @@ namespace fusionc::middleend::ir
           if (!stmt.children.empty())
           {
             std::string format = stmt.children[0]->value;
+            if (format.size() >= 2 && format.front() == '"' && format.back() == '"')
+            {
+              format = format.substr(1, format.size() - 2);
+            }
+
             if (stmt.children.size() == 1)
             {
               prog.push_back(Instruction{"print", format, "", ""});
