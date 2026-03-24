@@ -22,6 +22,7 @@ namespace fusionc::frontend::parser
     Identifier,
     Return,
     ExpressionStatement,
+    WhileStatement,
     Unknown
   };
 

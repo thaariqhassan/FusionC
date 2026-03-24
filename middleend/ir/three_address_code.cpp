@@ -18,6 +18,7 @@ namespace fusionc::middleend::ir
       {
         Program prog;
         tempCounter_ = 0;
+        labelCounter_ = 0;
 
         for (const auto &child : root.children)
         {
@@ -35,6 +36,13 @@ namespace fusionc::middleend::ir
       {
         std::ostringstream oss;
         oss << "t" << tempCounter_++;
+        return oss.str();
+      }
+
+      std::string newLabel()
+      {
+        std::ostringstream oss;
+        oss << "L" << labelCounter_++;
         return oss.str();
       }
 
@@ -59,6 +67,7 @@ namespace fusionc::middleend::ir
       void emitStatement(const frontend::parser::AstNode &stmt, Program &prog)
       {
         using frontend::parser::AstNodeKind;
+
         if (stmt.kind == AstNodeKind::ExpressionStatement)
         {
           if (!stmt.children.empty())
@@ -75,11 +84,32 @@ namespace fusionc::middleend::ir
         {
           emitBlock(stmt, prog);
         }
+        else if (stmt.kind == AstNodeKind::WhileStatement)
+        {
+          if (stmt.children.size() != 2)
+          {
+            throw std::runtime_error("Invalid while statement in TAC builder.");
+          }
+
+          std::string startLabel = newLabel();
+          std::string endLabel = newLabel();
+
+          prog.push_back(Instruction{"label", startLabel, "", ""});
+
+          std::string cond = emitExpr(*stmt.children[0], prog);
+          prog.push_back(Instruction{"jz", endLabel, cond, ""});
+
+          emitBlock(*stmt.children[1], prog);
+
+          prog.push_back(Instruction{"jmp", startLabel, "", ""});
+          prog.push_back(Instruction{"label", endLabel, "", ""});
+        }
       }
 
       std::string emitExpr(const frontend::parser::AstNode &expr, Program &prog)
       {
         using frontend::parser::AstNodeKind;
+
         switch (expr.kind)
         {
         case AstNodeKind::Declaration:
@@ -94,17 +124,20 @@ namespace fusionc::middleend::ir
             return idNode.value;
           }
           break;
+
         case AstNodeKind::Assignment:
         {
           if (expr.children.size() != 2)
           {
             break;
           }
+
           std::string rhs = emitExpr(*expr.children[1], prog);
           const auto &idNode = *expr.children[0];
           prog.push_back(Instruction{"copy", idNode.value, rhs, ""});
           return idNode.value;
         }
+
         case AstNodeKind::BinaryExpression:
         {
           std::string left = emitExpr(*expr.children[0], prog);
@@ -136,10 +169,13 @@ namespace fusionc::middleend::ir
           prog.push_back(Instruction{op, dst, left, right});
           return dst;
         }
+
         case AstNodeKind::Literal:
           return expr.value;
+
         case AstNodeKind::Identifier:
           return expr.value;
+
         default:
           break;
         }
@@ -148,6 +184,7 @@ namespace fusionc::middleend::ir
       }
 
       int tempCounter_ = 0;
+      int labelCounter_ = 0;
     };
   } // namespace
 
