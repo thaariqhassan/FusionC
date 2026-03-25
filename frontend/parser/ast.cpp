@@ -41,6 +41,8 @@ namespace fusionc::frontend::parser
         return "Printf";
       case AstNodeKind::Scanf:
         return "Scanf";
+      case AstNodeKind::Print:
+        return "Print";
       default:
         return "Unknown";
       }
@@ -205,6 +207,10 @@ namespace fusionc::frontend::parser
     if (match(lexer::TokenType::Keyword, "scanf"))
     {
     return parseScanf();
+    }
+    if (match(lexer::TokenType::Keyword, "print"))
+    {
+    return parsePrint();
     }
 
     if (match(lexer::TokenType::Keyword, "while"))
@@ -392,6 +398,32 @@ namespace fusionc::frontend::parser
     }
 
     return scanfNode;
+  }
+
+  std::unique_ptr<AstNode> Parser::parsePrint()
+  {
+    auto printNode = std::make_unique<AstNode>();
+    printNode->kind = AstNodeKind::Print;
+    printNode->value = "print";
+
+    if (!match(lexer::TokenType::StringLiteral))
+    {
+      addError("Expected string literal in print statement.");
+      return nullptr;
+    }
+
+    auto stringLit = std::make_unique<AstNode>();
+    stringLit->kind = AstNodeKind::Literal;
+    stringLit->value = previous().lexeme;
+    printNode->children.push_back(std::move(stringLit));
+
+    if (!match(lexer::TokenType::Punctuation, ";"))
+    {
+      addError("Expected ';' after print statement.");
+      return nullptr;
+    }
+
+    return printNode;
   }
 
   std::unique_ptr<AstNode> Parser::parseDeclarationOrAssignment()

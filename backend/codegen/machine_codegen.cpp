@@ -1,5 +1,4 @@
 #include "machine_codegen.h"
-
 #include <iostream>
 #include <unordered_map>
 #include <stdexcept>

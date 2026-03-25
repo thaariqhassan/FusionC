@@ -25,6 +25,7 @@ namespace fusionc::frontend::parser
     WhileStatement,
     Printf,
     Scanf,
+    Print,
     Unknown
   };
 
@@ -50,6 +51,7 @@ namespace fusionc::frontend::parser
     std::unique_ptr<AstNode> parseWhile();
     std::unique_ptr<AstNode> parsePrintf();
     std::unique_ptr<AstNode> parseScanf();
+    std::unique_ptr<AstNode> parsePrint();
     std::unique_ptr<AstNode> parseDeclarationOrAssignment();
     std::unique_ptr<AstNode> parseExpression();
     std::unique_ptr<AstNode> parseTerm();

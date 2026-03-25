@@ -134,6 +134,18 @@ namespace fusionc::middleend::ir
             prog.push_back(Instruction{"scan", var, "", ""});
           }
         }
+        else if (stmt.kind == AstNodeKind::Print)
+        {
+          if (!stmt.children.empty())
+          {
+            std::string text = stmt.children[0]->value;
+            if (text.size() >= 2 && text.front() == '"' && text.back() == '"')
+            {
+              text = text.substr(1, text.size() - 2);
+            }
+            prog.push_back(Instruction{"print", text, "", ""});
+          }
+        }
       }
 
       std::string emitExpr(const frontend::parser::AstNode &expr, Program &prog)
