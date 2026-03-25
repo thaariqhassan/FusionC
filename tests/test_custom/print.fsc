@@ -1,0 +1,5 @@
+fn main() {
+  let y = 20;
+  print y;
+  return 0;
+}

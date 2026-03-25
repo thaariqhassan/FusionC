@@ -1,5 +1,4 @@
 #include "machine_codegen.h"
-
 #include <iostream>
 #include <unordered_map>
 #include <stdexcept>
@@ -105,6 +104,10 @@ namespace fusionc::backend::codegen
             std::cout << std::endl;
           }
         }
+      }
+      else if (ins.op == "print_var")
+      {
+        std::cout << read(ins.dst) << std::endl;
       }
       else if (ins.op == "scan")
       {
