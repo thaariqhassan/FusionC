@@ -406,16 +406,24 @@ namespace fusionc::frontend::parser
     printNode->kind = AstNodeKind::Print;
     printNode->value = "print";
 
-    if (!match(lexer::TokenType::StringLiteral))
+    if (check(lexer::TokenType::StringLiteral))
     {
-      addError("Expected string literal in print statement.");
-      return nullptr;
+      advance();
+      auto stringLit = std::make_unique<AstNode>();
+      stringLit->kind = AstNodeKind::Literal;
+      stringLit->value = previous().lexeme;
+      printNode->children.push_back(std::move(stringLit));
     }
-
-    auto stringLit = std::make_unique<AstNode>();
-    stringLit->kind = AstNodeKind::Literal;
-    stringLit->value = previous().lexeme;
-    printNode->children.push_back(std::move(stringLit));
+    else
+    {
+      auto expr = parseExpression();
+      if (!expr)
+      {
+        addError("Expected string or expression in print statement.");
+        return nullptr;
+      }
+      printNode->children.push_back(std::move(expr));
+    }
 
     if (!match(lexer::TokenType::Punctuation, ";"))
     {

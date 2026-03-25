@@ -1,0 +1,6 @@
+fn main() {
+  let y = 42;
+  print "The answer is: ";
+  print y;
+  return 0;
+}

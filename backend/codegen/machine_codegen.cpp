@@ -105,6 +105,10 @@ namespace fusionc::backend::codegen
           }
         }
       }
+      else if (ins.op == "print_var")
+      {
+        std::cout << read(ins.dst) << std::endl;
+      }
       else if (ins.op == "scan")
       {
         std::cin >> slots[ins.dst];

@@ -1,4 +1,5 @@
 fn main() {
-  print "Hello World";
+  let y = 20;
+  print y;
   return 0;
 }

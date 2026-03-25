@@ -138,12 +138,21 @@ namespace fusionc::middleend::ir
         {
           if (!stmt.children.empty())
           {
-            std::string text = stmt.children[0]->value;
-            if (text.size() >= 2 && text.front() == '"' && text.back() == '"')
+            const auto &child = *stmt.children[0];
+            if (child.kind == AstNodeKind::Literal)
             {
-              text = text.substr(1, text.size() - 2);
+              std::string text = child.value;
+              if (text.size() >= 2 && text.front() == '"' && text.back() == '"')
+              {
+                text = text.substr(1, text.size() - 2);
+              }
+              prog.push_back(Instruction{"print", text, "", ""});
             }
-            prog.push_back(Instruction{"print", text, "", ""});
+            else
+            {
+              std::string value = emitExpr(child, prog);
+              prog.push_back(Instruction{"print_var", value, "", ""});
+            }
           }
         }
       }
