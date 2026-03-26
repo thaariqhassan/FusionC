@@ -23,6 +23,7 @@ namespace fusionc::frontend::parser
     Return,
     ExpressionStatement,
     WhileStatement,
+    ForStatement,
     Printf,
     Scanf,
     Print,

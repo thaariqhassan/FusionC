@@ -104,6 +104,36 @@ namespace fusionc::middleend::ir
           prog.push_back(Instruction{"jmp", startLabel, "", ""});
           prog.push_back(Instruction{"label", endLabel, "", ""});
         }
+        else if (stmt.kind == AstNodeKind::ForStatement)
+        {
+          if (stmt.children.size() != 4 || !stmt.children[1] || !stmt.children[3])
+          {
+            throw std::runtime_error("Invalid for statement in TAC builder.");
+          }
+
+          if (stmt.children[0])
+          {
+            emitExpr(*stmt.children[0], prog);
+          }
+
+          std::string startLabel = newLabel();
+          std::string endLabel = newLabel();
+
+          prog.push_back(Instruction{"label", startLabel, "", ""});
+
+          std::string cond = emitExpr(*stmt.children[1], prog);
+          prog.push_back(Instruction{"jz", endLabel, cond, ""});
+
+          emitBlock(*stmt.children[3], prog);
+
+          if (stmt.children[2])
+          {
+            emitExpr(*stmt.children[2], prog);
+          }
+
+          prog.push_back(Instruction{"jmp", startLabel, "", ""});
+          prog.push_back(Instruction{"label", endLabel, "", ""});
+        }
         else if (stmt.kind == AstNodeKind::Printf)
         {
           if (!stmt.children.empty())

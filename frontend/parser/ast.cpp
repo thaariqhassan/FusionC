@@ -37,6 +37,8 @@ namespace fusionc::frontend::parser
         return "ExpressionStatement";
       case AstNodeKind::WhileStatement:
         return "WhileStatement";
+      case AstNodeKind::ForStatement:
+        return "ForStatement";
       case AstNodeKind::Printf:
         return "Printf";
       case AstNodeKind::Scanf:
@@ -254,6 +256,96 @@ namespace fusionc::frontend::parser
       whileNode->children.push_back(std::move(condition));
       whileNode->children.push_back(std::move(body));
       return whileNode;
+    }
+
+    if (match(lexer::TokenType::Keyword, "for"))
+    {
+      auto forNode = std::make_unique<AstNode>();
+      forNode->kind = AstNodeKind::ForStatement;
+      forNode->value = "for";
+
+      if (!match(lexer::TokenType::Punctuation, "("))
+      {
+        addError("Expected '(' after for.");
+        return nullptr;
+      }
+
+      std::unique_ptr<AstNode> initializer;
+      if (!check(lexer::TokenType::Punctuation, ";"))
+      {
+        initializer = parseDeclarationOrAssignment();
+        if (!initializer)
+        {
+          addError("Invalid initializer in for statement.");
+          return nullptr;
+        }
+      }
+
+      if (!match(lexer::TokenType::Punctuation, ";"))
+      {
+        addError("Expected ';' after for initializer.");
+        return nullptr;
+      }
+
+      std::unique_ptr<AstNode> condition;
+      if (!check(lexer::TokenType::Punctuation, ";"))
+      {
+        condition = parseExpression();
+        if (!condition)
+        {
+          addError("Invalid condition in for statement.");
+          return nullptr;
+        }
+      }
+      else
+      {
+        auto literal = std::make_unique<AstNode>();
+        literal->kind = AstNodeKind::Literal;
+        literal->value = "1";
+        condition = std::move(literal);
+      }
+
+      if (!match(lexer::TokenType::Punctuation, ";"))
+      {
+        addError("Expected ';' after for condition.");
+        return nullptr;
+      }
+
+      std::unique_ptr<AstNode> increment;
+      if (!check(lexer::TokenType::Punctuation, ")"))
+      {
+        increment = parseDeclarationOrAssignment();
+        if (!increment)
+        {
+          addError("Invalid increment in for statement.");
+          return nullptr;
+        }
+      }
+
+      if (!match(lexer::TokenType::Punctuation, ")"))
+      {
+        addError("Expected ')' after for clauses.");
+        return nullptr;
+      }
+
+      if (!match(lexer::TokenType::Punctuation, "{"))
+      {
+        addError("Expected '{' to start for body.");
+        return nullptr;
+      }
+
+      auto body = parseBlock();
+      if (!body)
+      {
+        addError("Invalid for body.");
+        return nullptr;
+      }
+
+      forNode->children.push_back(std::move(initializer));
+      forNode->children.push_back(std::move(condition));
+      forNode->children.push_back(std::move(increment));
+      forNode->children.push_back(std::move(body));
+      return forNode;
     }
 
     if (match(lexer::TokenType::Keyword, "return"))
@@ -671,6 +763,11 @@ namespace fusionc::frontend::parser
 
     for (const auto &child : node.children)
     {
+      if (!child)
+      {
+        out << std::string(static_cast<std::size_t>(indent + 2), ' ') << "<null>" << '\n';
+        continue;
+      }
       out << astToString(*child, indent + 2);
     }
 

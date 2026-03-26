@@ -127,6 +127,57 @@ namespace fusionc::frontend::semantic
       return;
     }
 
+    if (stmt.kind == AstNodeKind::WhileStatement)
+    {
+      if (stmt.children.size() != 2 || !stmt.children[0] || !stmt.children[1])
+      {
+        errors_.push_back("Invalid while statement.");
+        return;
+      }
+
+      const auto condType = normalizeType(analyzeExpression(*stmt.children[0]));
+      if (!condType.empty() && condType != "int")
+      {
+        errors_.push_back("While condition must be of type int.");
+      }
+
+      analyzeBlock(*stmt.children[1]);
+      return;
+    }
+
+    if (stmt.kind == AstNodeKind::ForStatement)
+    {
+      symbols_.pushScope();
+
+      if (stmt.children.size() != 4 || !stmt.children[1] || !stmt.children[3])
+      {
+        errors_.push_back("Invalid for statement.");
+        symbols_.popScope();
+        return;
+      }
+
+      if (stmt.children[0])
+      {
+        analyzeExpression(*stmt.children[0]);
+      }
+
+      const auto condType = normalizeType(analyzeExpression(*stmt.children[1]));
+      if (!condType.empty() && condType != "int")
+      {
+        errors_.push_back("For condition must be of type int.");
+      }
+
+      analyzeBlock(*stmt.children[3]);
+
+      if (stmt.children[2])
+      {
+        analyzeExpression(*stmt.children[2]);
+      }
+
+      symbols_.popScope();
+      return;
+    }
+
     if (stmt.kind == AstNodeKind::ExpressionStatement && !stmt.children.empty())
     {
       analyzeExpression(*stmt.children.front());
